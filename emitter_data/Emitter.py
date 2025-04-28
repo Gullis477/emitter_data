@@ -37,14 +37,14 @@ class EmitterConfig(BaseModel):
     FREQ_MODULATION: Literal[1, 2, 3]
 
     dc: List[float]
-    pri: List[float]
+    pri: List[float]  # 20,500 microseconds
     n: int  # length of stagger sequence. Stagger works by forcing a pri mean over a sequence of pulse of length n [7,97]
-    fc: float  # carrier frequency
+    fc: float  # carrier frequency range 4,18 GHz
     nf: int  # number of frequency jumps
     mk: List[
         int
-    ]  # number of pulses per mode for dwell and switch (also use for one frequency modulation typ)
-    tbp: float  # time bandwidth product
+    ]  # number of pulses per mode for dwell and switch (also use for one frequency modulation typ). Number of modes [1,7]
+    tbp: float  # time bandwidth product from 1,1000
     snr: float
 
     @classmethod
@@ -100,14 +100,15 @@ def repeat_until_sum_exceeds(arr: List[float], k: int) -> List[float]:
 
 
 class Emitter(BaseModel):
-    # id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    id: int
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    # id: int
     pri: PRI
     freq: Frequency
     pw: PW
     bw: BW
     signal_rng_state: Optional[Dict] = None
     snr: float
+    config: EmitterConfig
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -125,10 +126,10 @@ class Emitter(BaseModel):
         if snr == None:
             snr = self.snr
         rng = np.random.default_rng()
-        rng.bit_generator.state = self.signal_rng_state
+        # rng.bit_generator.state = self.signal_rng_state
         pri = np.array(self.pri.PRIsignal(rng=rng))
-        pri1 = repeat_until_sum_exceeds(pri, signal_length)
-        toa = np.cumsum(pri1)
+        double_length = signal_length * 2
+        pri1 = repeat_until_sum_exceeds(pri, double_length)
         number_of_pdw = len(pri1)
         freq = self.freq.FrequencySignal(rng=rng)
         pw = self.pw.PWSignal(number_of_pdw=number_of_pdw)
@@ -136,6 +137,14 @@ class Emitter(BaseModel):
         freq = np.array(freq)
         freq = np.resize(freq, number_of_pdw).tolist()
 
+        start_index = rng.integers(0, int(number_of_pdw / 2)) if noise else 0
+
+        pw = pw[start_index:]
+        bw = bw[start_index:]
+        freq = freq[start_index:]
+        pri1 = pri1[start_index:]
+
+        toa = np.cumsum(pri1)
         df = pd.DataFrame(
             {
                 # "pri": pri1,
@@ -145,6 +154,8 @@ class Emitter(BaseModel):
                 "toa": toa,
             }
         )
+        df = df[df["toa"] < signal_length].reset_index(drop=True)
+
         if noise:
             number_of_pdw = df["toa"].shape[0]
             delta_f = SAMPLING_FREQUENCY / NUMBER_OF_BINS * SNR0 / snr
@@ -154,8 +165,7 @@ class Emitter(BaseModel):
             df["bw"] += rng.uniform(-delta_f / 2, delta_f / 2, number_of_pdw)
             df["pw"] += rng.uniform(-delta_toa / 2, delta_toa / 2, number_of_pdw)
             df["toa"] += rng.uniform(-delta_toa / 2, delta_toa / 2, number_of_pdw)
-
-            drop_rate = 0.1  # Adjust: 0.1 = drop 10% of rows
+            drop_rate = rng.uniform(0.01, 0.3)
             mask = rng.uniform(0, 1, len(df)) > drop_rate
             df = df[mask].reset_index(drop=True)
 
@@ -163,11 +173,9 @@ class Emitter(BaseModel):
         df.loc[0, "pri"] = df.loc[1, "pri"]
 
         return df
-    
 
-
-    def signal_to_csv(self, folder_path: str):
-        signal = self.signal()
+    def signal_to_csv(self, folder_path: str, noise: bool = True):
+        signal = self.signal(noise=noise)
 
         signal.to_csv(f"{folder_path}.csv", index=False)
 
@@ -193,7 +201,9 @@ def build_pw(
 
 
 def build_emitter(
-    config: EmitterConfig | None = None, rng: Generator | None = None, id: int = -1
+    # config: EmitterConfig | None = None, rng: Generator | None = None, id: int = -1
+    config: EmitterConfig | None = None,
+    rng: Generator | None = None,
 ) -> Emitter:
     if rng is None:
         rng = np.random.default_rng()
@@ -231,7 +241,8 @@ def build_emitter(
         mk=config.mk,
         tbp=config.tbp,
     )
-    emitter = Emitter(pri=pri, freq=freq, pw=pw, bw=bw, snr=config.snr, id=id)
+    emitter = Emitter(pri=pri, freq=freq, pw=pw, bw=bw, snr=config.snr, config=config)
+    # emitter = Emitter(pri=pri, freq=freq, pw=pw, bw=bw, snr=config.snr, id=id)
     return emitter
 
 

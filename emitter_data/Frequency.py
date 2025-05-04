@@ -10,7 +10,6 @@ from .my_settings import (
     SAMPLING_TIME,
     FREQUENCY_JUMP_RANGE,
     JITTER_AND_STAGGER_SPAN,
-    
 )
 
 
@@ -26,24 +25,24 @@ class FrequencyConfig(BaseModel):
 
 class Frequency(BaseModel, ABC):
     length: int
+    frequency_levels: None | List[float]
 
     @abstractmethod
-    def FrequencySignal(self, rng:Generator) -> List[float]:
+    def FrequencySignal(self, rng: Generator) -> List[float]:
         pass
 
 
 class Frequency1(Frequency):
     freq: float
 
-    def FrequencySignal(self, rng:Generator) -> List[float]:
+    def FrequencySignal(self, rng: Generator) -> List[float]:
         return [self.freq] * self.length
 
 
 class Frequency2(Frequency):
     frequency_levels: List[float]
 
-
-    def FrequencySignal(self, rng:Generator) -> List[float]:
+    def FrequencySignal(self, rng: Generator) -> List[float]:
         freq_sequence = rng.choice(
             self.frequency_levels, size=self.length, replace=True
         )
@@ -57,8 +56,7 @@ class Frequency3_1(Frequency):
     # If pri mod is jitter
     frequency_levels: List[float]
 
-
-    def FrequencySignal(self, rng:Generator) -> List[float]:
+    def FrequencySignal(self, rng: Generator) -> List[float]:
         X = rng.integers(16, 65)
         freq = rng.choice(self.frequency_levels, size=X, replace=True).tolist()
         freq_array = np.tile(freq, (self.length // len(freq) + 1))[: self.length]
@@ -70,9 +68,8 @@ class Frequency3_2(Frequency):
     frequency_levels: List[float]
     n: int
 
+    def FrequencySignal(self, rng: Generator) -> List[float]:
 
-    def FrequencySignal(self, rng:Generator) -> List[float]:
-        
         freq = rng.choice(self.frequency_levels, size=self.n, replace=True)
         freq_array = np.tile(freq, (self.length // len(freq) + 1))[
             : self.length
@@ -86,8 +83,7 @@ class Frequency3_3(Frequency):
 
     km: List[int]
 
-    def FrequencySignal(self, rng:Generator) -> List[float]:
-        
+    def FrequencySignal(self, rng: Generator) -> List[float]:
 
         random_frequencies = rng.choice(self.frequency_levels, size=len(self.km))
         signal = np.concatenate(
@@ -107,7 +103,9 @@ class FrequencyBuilder:
         seed = rng.integers(0, 2**32)
 
         if freq_type == 1:
-            return Frequency1(freq=freq_config.fc, length=freq_config.length)
+            return Frequency1(
+                freq=freq_config.fc, length=freq_config.length, frequency_levels=None
+            )
         if freq_type == 2:
             return Frequency2(
                 frequency_levels=frequency_levels,

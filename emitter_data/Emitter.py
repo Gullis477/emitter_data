@@ -4,6 +4,7 @@ from typing import Generator, List, Literal, Optional, Dict, Tuple
 import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
+from typing import Dict, Any
 
 # from .PRI import PRIBuilder, PRI, PRIConfig
 # from .PW import PW, PWBuilder
@@ -106,16 +107,19 @@ class Emitter(BaseModel):
     freq: Frequency
     pw: PW
     bw: BW
-    signal_rng_state: Optional[Dict] = None
+    rng_state: Optional[Dict] = None
     snr: float
     config: EmitterConfig
 
     def __init__(self, **data):
         super().__init__(**data)
-        signal_rng = data.get("signal_rng", None)
-        if signal_rng is None:
+
+        rng_state = data.get("rng_state", None)
+        if rng_state is None:
             signal_rng = np.random.default_rng()
-        self.signal_rng_state = signal_rng.bit_generator.state
+            self.rng_state = signal_rng.bit_generator.state
+        else:
+            self.rng_state = rng_state
 
     def signal(
         self,
@@ -126,7 +130,7 @@ class Emitter(BaseModel):
         if snr == None:
             snr = self.snr
         rng = np.random.default_rng()
-        # rng.bit_generator.state = self.signal_rng_state
+        rng.bit_generator.state = self.rng_state
         pri = np.array(self.pri.PRIsignal(rng=rng))
         double_length = signal_length * 2
         pri1 = repeat_until_sum_exceeds(pri, double_length)
@@ -136,8 +140,10 @@ class Emitter(BaseModel):
         bw = self.bw.BWSignal(number_of_pdw=number_of_pdw)
         freq = np.array(freq)
         freq = np.resize(freq, number_of_pdw).tolist()
-
-        start_index = rng.integers(0, int(number_of_pdw / 2)) if noise else 0
+        start_index = 0
+        noise_rng = np.random.default_rng()
+        if noise == True:
+            start_index = noise_rng.integers(0, int(number_of_pdw / 2))
 
         pw = pw[start_index:]
         bw = bw[start_index:]
@@ -161,12 +167,12 @@ class Emitter(BaseModel):
             delta_f = SAMPLING_FREQUENCY / NUMBER_OF_BINS * SNR0 / snr
             delta_toa = 1 / SAMPLING_FREQUENCY * SNR0 / snr
 
-            df["freq"] += rng.uniform(-delta_f / 2, delta_f / 2, number_of_pdw)
-            df["bw"] += rng.uniform(-delta_f / 2, delta_f / 2, number_of_pdw)
-            df["pw"] += rng.uniform(-delta_toa / 2, delta_toa / 2, number_of_pdw)
-            df["toa"] += rng.uniform(-delta_toa / 2, delta_toa / 2, number_of_pdw)
-            drop_rate = rng.uniform(0.01, 0.3)
-            mask = rng.uniform(0, 1, len(df)) > drop_rate
+            df["freq"] += noise_rng.uniform(-delta_f / 2, delta_f / 2, number_of_pdw)
+            df["bw"] += noise_rng.uniform(-delta_f / 2, delta_f / 2, number_of_pdw)
+            df["pw"] += noise_rng.uniform(-delta_toa / 2, delta_toa / 2, number_of_pdw)
+            df["toa"] += noise_rng.uniform(-delta_toa / 2, delta_toa / 2, number_of_pdw)
+            drop_rate = noise_rng.uniform(0.01, 0.3)
+            mask = noise_rng.uniform(0, 1, len(df)) > drop_rate
             df = df[mask].reset_index(drop=True)
 
         df["pri"] = df["toa"].diff().fillna(0.0)
@@ -202,14 +208,17 @@ def build_pw(
 
 def build_emitter(
     # config: EmitterConfig | None = None, rng: Generator | None = None, id: int = -1
-    config: EmitterConfig | None = None,
-    rng: Generator | None = None,
+    config: EmitterConfig,
+    rng_state: None | Dict[str, Any] = None,
 ) -> Emitter:
-    if rng is None:
-        rng = np.random.default_rng()
     if config is None:
         config = EmitterConfig.generate()
+    if rng_state is None:
+        rng = np.random.default_rng()
+        rng_state = rng.bit_generator.state
 
+    rng = np.random.default_rng()
+    rng.bit_generator.state = rng_state
     pri_config = PRIConfig(
         PRI_MODULATION=config.PRI_MODULATION, pri=config.pri, mk=config.mk, n=config.n
     )
@@ -227,6 +236,7 @@ def build_emitter(
         fc=config.fc,
         n=config.n,
     )
+
     freq = FrequencyBuilder().build(freq_config=freq_config, rng=rng)
     pw = PWBuilder().build(
         pri_type=config.PRI_MODULATION,
@@ -241,65 +251,15 @@ def build_emitter(
         mk=config.mk,
         tbp=config.tbp,
     )
-    emitter = Emitter(pri=pri, freq=freq, pw=pw, bw=bw, snr=config.snr, config=config)
+
+    emitter = Emitter(
+        pri=pri,
+        freq=freq,
+        pw=pw,
+        bw=bw,
+        snr=config.snr,
+        config=config,
+        rng_state=rng_state,
+    )
     # emitter = Emitter(pri=pri, freq=freq, pw=pw, bw=bw, snr=config.snr, id=id)
     return emitter
-
-
-if __name__ == "__main__":
-    pris = [1, 2, 3]
-    freqs = [1, 2, 3]
-
-    configs = []
-    for j in freqs:
-        for i in pris:
-            # print(f"FREQ {j}, PRI {i}")
-            config = EmitterConfig.generate(FREQ_MODULATION=j, PRI_MODULATION=i)
-            configs.append(config)
-
-    for config in configs:
-
-        emitter = build_emitter(config=config)
-        signal_id = uuid.uuid4()
-        hej = f"data2/{signal_id}"
-        emitter.signal_to_csv(folder_path=hej)
-
-
-# SPARA DETTA BLOCK
-# for config in configs:
-#    folder_name = f"data/{config.id}"
-#    print(folder_name)
-#
-#    os.makedirs(folder_name, exist_ok=True)
-#    config_dict = config.model_dump()
-#    with open(f"{folder_name}/config.json", "w") as json_file:
-#        json.dump(config_dict, json_file, indent=4, default=str)
-#
-#    emitter = build_emitter(config=config)
-#    signal_id = uuid.uuid4()
-#    hej = f"{folder_name}/{signal_id}"
-#
-#    emitter.signal_to_csv(folder_path=hej)
-
-
-# for df in emitters:
-#    # Define figure and subplots
-#    fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(8, 12), sharex=True)
-#
-#    # List of column names to plot
-#    columns_to_plot = ["pri", "freq", "pw", "bw"]
-#
-#    # Loop through columns and create subplots
-#    for ax, column in zip(axes, columns_to_plot):
-#        ax.plot(df["toa"], df[column], marker="o", linestyle="-", label=column)
-#        ax.set_ylabel(column)
-#        ax.legend()
-#        ax.grid(True)
-#
-#    # Set common X-label
-#    axes[-1].set_xlabel("TOA")
-#
-#    # Adjust layout for clarity
-#    plt.tight_layout()
-#    plt.show()
-#

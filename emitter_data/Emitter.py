@@ -208,7 +208,7 @@ def build_pw(
 
 def build_emitter(
     # config: EmitterConfig | None = None, rng: Generator | None = None, id: int = -1
-    config: EmitterConfig,
+    config: EmitterConfig|None = None,
     rng_state: None | Dict[str, Any] = None,
 ) -> Emitter:
     if config is None:

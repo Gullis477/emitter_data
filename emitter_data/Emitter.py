@@ -225,7 +225,7 @@ def build_emitter(
     pri = PRIBuilder().build(pri_config, rng=rng)
     number_of_pdw = len(
         pri.PRIsignal(rng=rng)
-    )  # Detta är jävlig sketchy men kanske fungerar
+    )  # TODO: Do better
 
     freq_config = FrequencyConfig(
         PRI_MODULATION=config.PRI_MODULATION,

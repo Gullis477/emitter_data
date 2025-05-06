@@ -37,7 +37,7 @@ class EmitterConfig(BaseModel):
     PRI_MODULATION: Literal[1, 2, 3]  # ["jitter", "stagger", "dwell_and_switch"]
     FREQ_MODULATION: Literal[1, 2, 3]
 
-    dc: List[float]
+    dc: float
     pri: List[float]  # 20,500 microseconds
     n: int  # length of stagger sequence. Stagger works by forcing a pri mean over a sequence of pulse of length n [7,97]
     fc: float  # carrier frequency range 4,18 GHz
@@ -66,7 +66,7 @@ class EmitterConfig(BaseModel):
             m = rng.integers(1, 8)
         else:
             m = 1
-        duty_cycles = rng.uniform(0.01, 0.2, m).tolist()
+        duty_cycles = rng.uniform(0.01, 0.2)
         pri_values = rng.uniform(
             20e-6, 500e-6, m
         ).tolist()  # microseconds. Should there be a minimum range between pri values for delay and switch? Answer: In reality maybe, in this case we choose not.
@@ -208,7 +208,7 @@ def build_pw(
 
 def build_emitter(
     # config: EmitterConfig | None = None, rng: Generator | None = None, id: int = -1
-    config: EmitterConfig|None = None,
+    config: EmitterConfig | None = None,
     rng_state: None | Dict[str, Any] = None,
 ) -> Emitter:
     if config is None:
@@ -223,9 +223,7 @@ def build_emitter(
         PRI_MODULATION=config.PRI_MODULATION, pri=config.pri, mk=config.mk, n=config.n
     )
     pri = PRIBuilder().build(pri_config, rng=rng)
-    number_of_pdw = len(
-        pri.PRIsignal(rng=rng)
-    )  # TODO: Do better
+    number_of_pdw = len(pri.PRIsignal(rng=rng))  # TODO: Do better
 
     freq_config = FrequencyConfig(
         PRI_MODULATION=config.PRI_MODULATION,

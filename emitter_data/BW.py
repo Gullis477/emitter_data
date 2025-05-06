@@ -16,7 +16,7 @@ class BWBuilder:
         self,
         pri_samples: List[float],
         pri_type: int,
-        dc: List[float],
+        dc: float,
         mk: List[int],
         tbp: float,
     ) -> BW:
@@ -25,11 +25,11 @@ class BWBuilder:
         bw_array = np.array([])
 
         if pri_type == 1:
-            pw_array = np.array([pri_samples[0] * dc[0]])
+            pw_array = np.array([pri_samples[0] * dc])
         elif pri_type == 2:
-            pw_array = np.array([pri_samples[0] * dc[0]])
+            pw_array = np.array([pri_samples[0] * dc])
         elif pri_type == 3:
-            pw_values = np.array(dc) * pri_samples
+            pw_values = dc * np.array(pri_samples)
             pw_array = np.repeat(pw_values, mk)
 
         bw_array = tbp / pw_array

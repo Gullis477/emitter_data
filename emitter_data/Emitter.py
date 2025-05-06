@@ -190,26 +190,6 @@ class Emitter(BaseModel):
         signal.to_csv(f"{folder_path}.csv", index=False)
 
 
-def build_pw(
-    pri_modulation: int,
-    pri_list: List[float],
-    dc: List[float],
-    mk: List[int],
-    length: int,
-) -> List[float]:
-    pri = np.array(pri_list)
-    pw_array = np.array([])
-    if pri_modulation == 1:
-        pw_array = np.array([pri[0] * dc[0]])
-    elif pri_modulation == 2:
-        pw_array = np.array([pri[0] * dc[0]])
-    elif pri_modulation == 3:
-        pw_values = np.array(dc) * pri
-        pw_array = np.repeat(pw_values, mk)
-    pw_list = np.tile(pw_array, (length // (len(pw_array) + 1)))[:length].tolist()
-    return pw_list
-
-
 def build_emitter(
     # config: EmitterConfig | None = None, rng: Generator | None = None, id: int = -1
     config: EmitterConfig | None = None,

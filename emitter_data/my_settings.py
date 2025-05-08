@@ -1,9 +1,26 @@
 MIN_FC_LEVELS = 64
 MAX_FC_LEVELS = 256
-SAMPLING_TIME = 100e-3 # 100milisekunder
+SAMPLING_TIME = 100e-3  # 100milisekunder
 # SAMPLING_TIME = 0.1
 FREQUENCY_JUMP_RANGE = 0.1  # 10%
+FREQUENCY_RANGE = (4e9, 18e9)  # 4 GHz to 18 GHz
+FREQUENCY_NUMER_OF_LEVELS = 128
+FREQUENCY_STAGGER_LENGTHS = (64, 256 + 1)  # 64 to 256 +1 to include 256
+
+DUTY_CYCLE = (0.01, 0.2)  # 1% to 20%
+PRI_RANGE = (20e-6, 500e-6)  # 20 microseconds to 500 microseconds
+
+PRI_DWELL_SWITCH_NO_DWELLS = (1, 7 + 1)  # +1 to include 7
+PRI_DWELL_SWITCH_LENGTHS = (1, 64 + 1)  # +1 to include 64
+PRI_STAGGER_RANGE = (7, 97 + 1)  # 7 to 97 pulses +1 to include 97
+
+
 JITTER_AND_STAGGER_SPAN = 0.1  # 10%
+JITTER_RANGE = 0.1  # 10%
+STAGGER_RANGE = 0.1  # 10%
+
+TIME_BANDWIDTH_PRODUCT = (1, 1000)  # 1 to 1000
+
 SNR0 = 13.2
 SNR_LOW = 7
 SNR_HIGH = 30

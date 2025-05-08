@@ -16,8 +16,14 @@ from .PW import PW, PWBuilder  # Assuming PW.py is in 'my_emitter_module'
 from .BW import BW, BWBuilder  # Assuming BW.py is in 'my_emitter_module'
 from .Frequency import FrequencyBuilder, Frequency, FrequencyConfig
 from .my_settings import (
+    DUTY_CYCLE,
+    FREQUENCY_RANGE,
     MIN_FC_LEVELS,
     MAX_FC_LEVELS,
+    PRI_DWELL_SWITCH_LENGTHS,
+    PRI_DWELL_SWITCH_NO_DWELLS,
+    PRI_RANGE,
+    PRI_STAGGER_RANGE,
     SAMPLING_TIME,
     FREQUENCY_JUMP_RANGE,
     JITTER_AND_STAGGER_SPAN,
@@ -26,6 +32,7 @@ from .my_settings import (
     SNR_LOW,
     SAMPLING_FREQUENCY,
     NUMBER_OF_BINS,
+    TIME_BANDWIDTH_PRODUCT,
 )
 import matplotlib.pyplot as plt
 import os
@@ -63,18 +70,18 @@ class EmitterConfig(BaseModel):
             FREQ_MODULATION = rng.choice([1, 2, 3])
 
         if PRI_MODULATION == 3:
-            m = rng.integers(1, 8)
+            m = rng.integers(*PRI_DWELL_SWITCH_NO_DWELLS)
         else:
             m = 1
-        duty_cycles = rng.uniform(0.01, 0.2)
+        duty_cycles = rng.uniform(*DUTY_CYCLE)
         pri_values = rng.uniform(
-            20e-6, 500e-6, m
+            *PRI_RANGE, m
         ).tolist()  # microseconds. Should there be a minimum range between pri values for delay and switch? Answer: In reality maybe, in this case we choose not.
-        fc = rng.uniform(4e9, 18e9)
-        n = rng.integers(1, 98)
+        fc = rng.uniform(*FREQUENCY_RANGE)
+        n = rng.integers(*PRI_STAGGER_RANGE)
         nf = rng.integers(MIN_FC_LEVELS, MAX_FC_LEVELS + 1)
-        mk = rng.integers(1, 65, m).tolist()
-        tbp = rng.uniform(1, 1000)
+        mk = rng.integers(*PRI_DWELL_SWITCH_LENGTHS, m).tolist()
+        tbp = rng.uniform(*TIME_BANDWIDTH_PRODUCT)
         snr = rng.uniform(SNR_LOW, SNR_HIGH)
 
         return cls(
@@ -107,7 +114,9 @@ class Emitter(BaseModel):
     freq: Frequency
     pw: PW
     bw: BW
-    rng_state: Optional[Dict] = None
+    rng_state: Optional[Dict] = (
+        None  # This is the state of the random number generator used to generate the signal.
+    )
     snr: float
     config: EmitterConfig
 
@@ -219,7 +228,7 @@ def build_emitter(
         n=config.n,
     )
 
-    freq = FrequencyBuilder().build(freq_config=freq_config, rng=rng)
+    freq = FrequencyBuilder().build(freq_config=freq_config)
     pw = PWBuilder().build(
         pri_type=config.PRI_MODULATION,
         pri_samples=config.pri,

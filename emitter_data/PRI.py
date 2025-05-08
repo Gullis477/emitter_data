@@ -5,11 +5,9 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 from .my_settings import (
-    MIN_FC_LEVELS,
-    MAX_FC_LEVELS,
+    JITTER_RANGE,
     SAMPLING_TIME,
-    FREQUENCY_JUMP_RANGE,
-    JITTER_AND_STAGGER_SPAN,
+    STAGGER_RANGE,
 )
 
 
@@ -35,7 +33,7 @@ class PRIJitter(PRI):
         length_of_jitter_signal = int(
             2 * SAMPLING_TIME / median_pri
         )  #  We will sample for some time initally we set it to 100 milliseconds. 100milliseconds is100000 micro second
-        pri_range = median_pri / 10
+        pri_range = median_pri * JITTER_RANGE
         lower = median_pri - pri_range
         upper = median_pri + pri_range
         jitter_list = rng.uniform(lower, upper, length_of_jitter_signal).tolist()
@@ -44,13 +42,30 @@ class PRIJitter(PRI):
 
 
 class PRIStagger(PRI):
+    n: int
+
     def PRIsignal(self, rng: Generator) -> List[float]:
-        return self.pri_sequence
+        N = self.n  # Number of pulses in the sequence
+        median_pri = self.pri_sequence[0]
+        # TODO: Should it be normal or uniform and is a there an acceptable range in terms of closness to the pri mean vs origin pri? What is the range (or standard deviation) of values that can be drawned? The next time the sequence is sent, should it be a new sequence or the same?
+        pri_range = median_pri * STAGGER_RANGE
+        stagger_sequence = rng.uniform(
+            median_pri - pri_range, median_pri + pri_range, N
+        )
+        mean = stagger_sequence.mean()
+        delta = median_pri - mean
+        stagger_sequence = stagger_sequence + delta
+        stagger_list = stagger_sequence.tolist()
+
+        return stagger_list
 
 
 class PRIDwellSwitch(PRI):
+    mk: List[int]
+
     def PRIsignal(self, rng: Generator) -> List[float]:
-        return self.pri_sequence
+        dns_list = np.repeat(self.pri_sequence, self.mk).tolist()
+        return dns_list
 
 
 class PRIBuilder:
@@ -58,19 +73,16 @@ class PRIBuilder:
 
         if emitter_config.PRI_MODULATION == 1:
             pri_mean = [emitter_config.pri[0]]
-            return PRIJitter(rng=rng, pri_sequence=pri_mean)
+            return PRIJitter(pri_sequence=pri_mean)
         elif emitter_config.PRI_MODULATION == 2:
-            stagger = self.build_stagger(
-                rng=rng, median_pri=emitter_config.pri[0], N=emitter_config.n
-            )  # since it is stagger, pri only have one value
-            return PRIStagger(pri_sequence=stagger)
+            pri_mean = [emitter_config.pri[0]]
+            return PRIStagger(pri_sequence=pri_mean, n=emitter_config.n)
         elif emitter_config.PRI_MODULATION == 3:
-            dns = self.build_dns(pri=emitter_config.pri, mk=emitter_config.mk)
-            return PRIDwellSwitch(pri_sequence=dns)
+            return PRIDwellSwitch(pri_sequence=emitter_config.pri, mk=emitter_config.mk)
 
     def build_stagger(self, rng: Generator, median_pri: float, N: int) -> List[float]:
         # TODO: Should it be normal or uniform and is a there an acceptable range in terms of closness to the pri mean vs origin pri? What is the range (or standard deviation) of values that can be drawned? The next time the sequence is sent, should it be a new sequence or the same?
-        pri_range = median_pri / 10
+        pri_range = median_pri * STAGGER_RANGE
         stagger_sequence = rng.uniform(
             median_pri - pri_range, median_pri + pri_range, N
         )
@@ -86,5 +98,3 @@ class PRIBuilder:
             [np.full(mk, pri_value) for pri_value, mk in zip(pri, mk)]
         ).tolist()
         return dns_list
-
-

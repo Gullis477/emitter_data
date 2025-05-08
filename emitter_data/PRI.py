@@ -79,22 +79,3 @@ class PRIBuilder:
             return PRIStagger(pri_sequence=pri_mean, n=emitter_config.n)
         elif emitter_config.PRI_MODULATION == 3:
             return PRIDwellSwitch(pri_sequence=emitter_config.pri, mk=emitter_config.mk)
-
-    def build_stagger(self, rng: Generator, median_pri: float, N: int) -> List[float]:
-        # TODO: Should it be normal or uniform and is a there an acceptable range in terms of closness to the pri mean vs origin pri? What is the range (or standard deviation) of values that can be drawned? The next time the sequence is sent, should it be a new sequence or the same?
-        pri_range = median_pri * STAGGER_RANGE
-        stagger_sequence = rng.uniform(
-            median_pri - pri_range, median_pri + pri_range, N
-        )
-        mean = stagger_sequence.mean()
-        delta = median_pri - mean
-        stagger_sequence = stagger_sequence + delta
-        stagger_list = stagger_sequence.tolist()
-
-        return stagger_list
-
-    def build_dns(self, pri: List[float], mk: List[int]) -> List[float]:
-        dns_list = np.concatenate(
-            [np.full(mk, pri_value) for pri_value, mk in zip(pri, mk)]
-        ).tolist()
-        return dns_list

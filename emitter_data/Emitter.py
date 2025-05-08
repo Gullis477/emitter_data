@@ -166,7 +166,6 @@ class Emitter(BaseModel):
             df["bw"] += noise_rng.uniform(-delta_f / 2, delta_f / 2, number_of_pdw)
             df["pw"] += noise_rng.uniform(-delta_toa / 2, delta_toa / 2, number_of_pdw)
             df["toa"] += noise_rng.uniform(-delta_toa / 2, delta_toa / 2, number_of_pdw)
-            drop_rate = noise_rng.uniform(0.01, 0.3)
 
             a = (0.1 - 0) / (SNR_LOW - SNR_HIGH)
             b = -a * SNR_HIGH
@@ -229,5 +228,5 @@ def build_emitter(
         config=config,
         rng_state=config.rng_state,
     )
-    # emitter = Emitter(pri=pri, freq=freq, pw=pw, bw=bw, snr=config.snr, id=id)
+
     return emitter

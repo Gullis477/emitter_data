@@ -37,7 +37,7 @@ def load_emitter(filename: str) -> Emitter:
         data = json.load(f)
 
     config = EmitterConfig(**data["config"])
-    rng_state = data["rng_state"]
-    emitter = build_emitter(config=config, rng_state=rng_state)
+
+    emitter = build_emitter(config=config)
 
     return emitter

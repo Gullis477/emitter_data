@@ -18,15 +18,11 @@ from .Frequency import FrequencyBuilder, Frequency, FrequencyConfig
 from .my_settings import (
     DUTY_CYCLE,
     FREQUENCY_RANGE,
-    MIN_FC_LEVELS,
-    MAX_FC_LEVELS,
     PRI_DWELL_SWITCH_LENGTHS,
     PRI_DWELL_SWITCH_NO_DWELLS,
     PRI_RANGE,
     PRI_STAGGER_RANGE,
     SAMPLING_TIME,
-    FREQUENCY_JUMP_RANGE,
-    JITTER_AND_STAGGER_SPAN,
     SNR_HIGH,
     SNR0,
     SNR_LOW,
@@ -48,12 +44,12 @@ class EmitterConfig(BaseModel):
     pri: List[float]  # 20,500 microseconds
     n: int  # length of stagger sequence. Stagger works by forcing a pri mean over a sequence of pulse of length n [7,97]
     fc: float  # carrier frequency range 4,18 GHz
-    nf: int  # number of frequency jumps
     mk: List[
         int
     ]  # number of pulses per mode for dwell and switch (also use for one frequency modulation typ). Number of modes [1,7]
     tbp: float  # time bandwidth product from 1,1000
     snr: float
+    rng_state: Dict  # This is the state of the random number generator used to generate the signal. Not pretty but this way the state is only in one place and it is possible to generate the same signal again after saving the emitter to disk.
 
     @classmethod
     def generate(
@@ -79,10 +75,10 @@ class EmitterConfig(BaseModel):
         ).tolist()  # microseconds. Should there be a minimum range between pri values for delay and switch? Answer: In reality maybe, in this case we choose not.
         fc = rng.uniform(*FREQUENCY_RANGE)
         n = rng.integers(*PRI_STAGGER_RANGE)
-        nf = rng.integers(MIN_FC_LEVELS, MAX_FC_LEVELS + 1)
         mk = rng.integers(*PRI_DWELL_SWITCH_LENGTHS, m).tolist()
         tbp = rng.uniform(*TIME_BANDWIDTH_PRODUCT)
         snr = rng.uniform(SNR_LOW, SNR_HIGH)
+        rng_state = rng.bit_generator.state
 
         return cls(
             dc=duty_cycles,
@@ -90,11 +86,11 @@ class EmitterConfig(BaseModel):
             PRI_MODULATION=PRI_MODULATION,
             fc=fc,
             n=n,
-            nf=nf,
             mk=mk,
             FREQ_MODULATION=FREQ_MODULATION,
             tbp=tbp,
             snr=snr,
+            rng_state=rng_state,
         )
 
 
@@ -114,21 +110,11 @@ class Emitter(BaseModel):
     freq: Frequency
     pw: PW
     bw: BW
-    rng_state: Optional[Dict] = (
-        None  # This is the state of the random number generator used to generate the signal.
-    )
     snr: float
     config: EmitterConfig
 
     def __init__(self, **data):
         super().__init__(**data)
-
-        rng_state = data.get("rng_state", None)
-        if rng_state is None:
-            signal_rng = np.random.default_rng()
-            self.rng_state = signal_rng.bit_generator.state
-        else:
-            self.rng_state = rng_state
 
     def signal(
         self,
@@ -139,7 +125,7 @@ class Emitter(BaseModel):
         if snr == None:
             snr = self.snr
         rng = np.random.default_rng()
-        rng.bit_generator.state = self.rng_state
+        rng.bit_generator.state = self.config.rng_state
         pri = np.array(self.pri.PRIsignal(rng=rng))
         double_length = signal_length * 2
         pri1 = repeat_until_sum_exceeds(pri, double_length)
@@ -202,27 +188,18 @@ class Emitter(BaseModel):
 def build_emitter(
     # config: EmitterConfig | None = None, rng: Generator | None = None, id: int = -1
     config: EmitterConfig | None = None,
-    rng_state: None | Dict[str, Any] = None,
 ) -> Emitter:
     if config is None:
         config = EmitterConfig.generate()
-    if rng_state is None:
-        rng = np.random.default_rng()
-        rng_state = rng.bit_generator.state
 
-    rng = np.random.default_rng()
-    rng.bit_generator.state = rng_state
     pri_config = PRIConfig(
         PRI_MODULATION=config.PRI_MODULATION, pri=config.pri, mk=config.mk, n=config.n
     )
-    pri = PRIBuilder().build(pri_config, rng=rng)
-    number_of_pdw = len(pri.PRIsignal(rng=rng))  # TODO: Do better
+    pri = PRIBuilder().build(pri_config)
 
     freq_config = FrequencyConfig(
         PRI_MODULATION=config.PRI_MODULATION,
         FREQ_MODULATION=config.FREQ_MODULATION,
-        length=number_of_pdw,
-        nf=config.nf,
         mk=config.mk,
         fc=config.fc,
         n=config.n,
@@ -250,7 +227,7 @@ def build_emitter(
         bw=bw,
         snr=config.snr,
         config=config,
-        rng_state=rng_state,
+        rng_state=config.rng_state,
     )
     # emitter = Emitter(pri=pri, freq=freq, pw=pw, bw=bw, snr=config.snr, id=id)
     return emitter

@@ -69,7 +69,7 @@ class PRIDwellSwitch(PRI):
 
 
 class PRIBuilder:
-    def build(self, emitter_config: PRIConfig, rng: Generator) -> PRI:
+    def build(self, emitter_config: PRIConfig) -> PRI:
 
         if emitter_config.PRI_MODULATION == 1:
             pri_mean = [emitter_config.pri[0]]

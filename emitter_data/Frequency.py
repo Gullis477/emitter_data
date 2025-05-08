@@ -6,17 +6,14 @@ import numpy as np
 
 from .my_settings import (
     FREQUENCY_JUMP_RANGE,
-    FREQUENCY_NUMER_OF_LEVELS,
+    FREQUENCY_NUMBER_OF_LEVELS,
     FREQUENCY_STAGGER_LENGTHS,
-    JITTER_AND_STAGGER_SPAN,
 )
 
 
 class FrequencyConfig(BaseModel):
     PRI_MODULATION: int
     FREQ_MODULATION: int
-    length: int
-    nf: int
     mk: List[int]
     fc: float
     n: int
@@ -24,7 +21,7 @@ class FrequencyConfig(BaseModel):
 
 class Frequency(BaseModel, ABC):
 
-    frequency_levels: None | List[float]
+    frequency_levels: List[float]
 
     @abstractmethod
     def FrequencySignal(self, rng: Generator) -> List[float]:
@@ -32,10 +29,9 @@ class Frequency(BaseModel, ABC):
 
 
 class Frequency1(Frequency):
-    freq: float
 
     def FrequencySignal(self, rng: Generator) -> List[float]:
-        return [self.freq]
+        return [self.frequency_levels[0]]
 
 
 class Frequency2(Frequency):
@@ -95,12 +91,12 @@ class FrequencyBuilder:
         pri_type = freq_config.PRI_MODULATION
         min_frequency = freq_config.fc * (1 - FREQUENCY_JUMP_RANGE)
         max_frequency = freq_config.fc * (1 + FREQUENCY_JUMP_RANGE)
-        frequency_levels = np.linspace(min_frequency, max_frequency, freq_config.nf)
+        frequency_levels = np.linspace(
+            min_frequency, max_frequency, FREQUENCY_NUMBER_OF_LEVELS
+        )
 
         if freq_type == 1:
-            return Frequency1(
-                freq=freq_config.fc, length=freq_config.length, frequency_levels=None
-            )
+            return Frequency1(frequency_levels=[freq_config.fc])
         if freq_type == 2:
             return Frequency2(
                 frequency_levels=frequency_levels,  # Ska dela upp intervallet i Nf hack från [64,256] slumpar frekvensen mellan varje pulse, sekvensen upprepas, men hur lång ska frekvensen vara+
@@ -108,14 +104,10 @@ class FrequencyBuilder:
         if freq_type == 3 and pri_type == 1:
             return Frequency3_1(
                 frequency_levels=frequency_levels,
-                nf=freq_config.nf,
-                length=freq_config.length,
             )
         if freq_type == 3 and pri_type == 2:
             return Frequency3_2(
                 frequency_levels=frequency_levels,
-                nf=freq_config.nf,
-                length=freq_config.length,
                 n=freq_config.n,
             )
         if freq_type == 3 and pri_type == 3:
